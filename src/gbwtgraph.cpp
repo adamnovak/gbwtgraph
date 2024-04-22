@@ -741,14 +741,12 @@ GBWTGraph::get_path_handle(const std::string& path_name) const
     std::string sample_name;
     std::string contig_name;
     size_t haplotype;
-    size_t phase_block;
     subrange_t subrange;
     PathMetadata::parse_path_name(path_name,
                                   sense,
                                   sample_name,
                                   contig_name,
                                   haplotype,
-                                  phase_block,
                                   subrange);
 
     if(gbwtgraph::get_sample_sense(sample_name, this->reference_samples) != PathSense::HAPLOTYPE)
@@ -758,17 +756,7 @@ GBWTGraph::get_path_handle(const std::string& path_name) const
       return to_return;
     }
 
-    if(subrange != NO_SUBRANGE)
-    {
-      // We don't store haplotype subranges.
-      return to_return;
-    }
-
-    if(phase_block == NO_PHASE_BLOCK)
-    {
-      // We need a phase block.
-      return to_return;
-    }
+    size_t count_field = subrange_to_number(subrange);
 
     if(haplotype == NO_HAPLOTYPE)
     {
@@ -794,9 +782,9 @@ GBWTGraph::get_path_handle(const std::string& path_name) const
     for(auto& path_id : this->index->metadata.findPaths(sample_number, contig_number))
     {
       // Paths are only indexed by sample and contig, so we have to scan for the
-      // right haplotype and phase block.
+      // right haplotype and start offset.
       auto& structured_name = this->index->metadata.path(path_id);
-      if(structured_name.phase == haplotype && structured_name.count == phase_block)
+      if(structured_name.phase == haplotype && structured_name.count == count_field)
       {
         // This is the right path. Turn it into a haplotype path handle.
         to_return = handlegraph::as_path_handle(this->named_paths.size() + path_id);
@@ -1185,14 +1173,6 @@ GBWTGraph::get_haplotype(const path_handle_t& handle) const
   PathSense sense = this->get_sense(handle);
   auto& structured_name = this->index->metadata.path(this->handle_to_path(handle));
   return gbwtgraph::get_path_haplotype(this->index->metadata, structured_name, sense);
-}
-
-size_t
-GBWTGraph::get_phase_block(const path_handle_t& handle) const
-{
-  PathSense sense = this->get_sense(handle);
-  auto& structured_name = this->index->metadata.path(this->handle_to_path(handle));
-  return gbwtgraph::get_path_phase_block(this->index->metadata, structured_name, sense);
 }
 
 subrange_t

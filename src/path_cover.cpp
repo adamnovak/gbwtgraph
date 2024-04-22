@@ -528,7 +528,6 @@ store_paths(gbwt::GBWTBuilder& builder, const PathHandleGraph& graph, const std:
       sample_name,
       graph.get_locus_name(path),
       graph.get_haplotype(path),
-      graph.get_phase_block(path),
       graph.get_subrange(path)
     );
 
@@ -604,7 +603,7 @@ path_cover_gbwt(
     if(job >= paths_to_include.size()) { continue; }
     for(size_t i = 0; i < parameters.num_paths; i++)
     {
-      metadata.add_haplotype("path_cover_" + std::to_string(i), contig_names[component], 0, 0, job);
+      metadata.add_haplotype("path_cover_" + std::to_string(i), contig_names[component], 0, handlegraph::PathMetadata::NO_SUBRANGE, job);
     }
   }
 
@@ -692,7 +691,7 @@ local_haplotypes(
     if(job >= paths_to_include.size()) { continue; }
     for(size_t i = 0; i < parameters.num_paths; i++)
     {
-      metadata.add_haplotype("path_cover_" + std::to_string(i), contig_names[component], 0, 0, job);
+      metadata.add_haplotype("path_cover_" + std::to_string(i), contig_names[component], 0, handlegraph::PathMetadata::NO_SUBRANGE, job);
     }
   }
 
@@ -815,7 +814,7 @@ augment_gbwt(
     );
     for(size_t i = 0; i < parameters.num_paths; i++)
     {
-      metadata.add_haplotype("path_cover_" + std::to_string(i), "component_" + std::to_string(component), 0, 0, 0);
+      metadata.add_haplotype("path_cover_" + std::to_string(i), "component_" + std::to_string(component), 0, handlegraph::PathMetadata::NO_SUBRANGE, 0);
     }
     augmented_components++;
   }

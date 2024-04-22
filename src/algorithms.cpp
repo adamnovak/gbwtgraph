@@ -354,7 +354,6 @@ assign_paths(
         graph.get_sample_name(path),
         graph.get_locus_name(path),
         graph.get_haplotype(path),
-        graph.get_phase_block(path),
         graph.get_subrange(path),
         job
       );

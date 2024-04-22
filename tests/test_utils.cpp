@@ -243,11 +243,11 @@ public:
       size_t job = (assign_job ? get_job(path) : 0);
       if(path.sample == REFERENCE_PATH_SAMPLE_NAME)
       {
-        builder.add_generic_path(path.contig, job);
+        builder.add_generic_path(path.contig, {path.fragment, handlegraph::PathMetadata::NO_END_POSITION}, job);
       }
       else
       {
-        builder.add_haplotype(path.sample, path.contig, path.haplotype, path.fragment, job);
+        builder.add_haplotype(path.sample, path.contig, path.haplotype, {path.fragment, handlegraph::PathMetadata::NO_END_POSITION}, job);
       }
     }
   }
@@ -258,7 +258,7 @@ public:
     {
       if(path.sample == REFERENCE_PATH_SAMPLE_NAME)
       {
-        builder.add_generic_path(path.contig);
+        builder.add_generic_path(path.contig, {path.fragment, handlegraph::PathMetadata::NO_END_POSITION});
       }
       else
       {
@@ -271,16 +271,33 @@ public:
 
   void add_named_paths(MetadataBuilder& builder, const std::vector<StandAlonePathName>& paths)
   {
+    
+    // Work out which sample, contig, haplotype tuples have multiple subpaths on them.
+    std::map<std::tuple<std::string, std::string, size_t>, size_t> part_count;
+    for(const StandAlonePathName& path : paths)
+    {
+      part_count[{path.sample, path.contig, path.haplotype}]++;
+    }
+
     for(const StandAlonePathName& path : paths)
     {
       std::string name;
       if(path.sample == REFERENCE_PATH_SAMPLE_NAME)
       {
         name = path.contig;
+        if (path.fragment != 0 || part_count[{path.sample, path.contig, path.haplotype}] > 1)
+        {
+          // We have a nonzero subrange start or someone else does to differentiate from us
+          name += ":" + std::to_string(path.fragment);
+        }
       }
       else
       {
         name = path.sample + "#" + std::to_string(path.haplotype) + "#" + path.contig;
+        if (path.fragment != 0 || part_count[{path.sample, path.contig, path.haplotype}] > 1)
+        {
+          name += ":" + std::to_string(path.fragment);
+        }
       }
       builder.add_path(name);
     }
@@ -311,7 +328,7 @@ public:
       EXPECT_EQ(metadata.sample(path.sample), paths[i].sample) << "Invalid sample name for path " << i;
       EXPECT_EQ(metadata.contig(path.contig), paths[i].contig) << "Invalid contig name for path " << i;
       EXPECT_EQ(path.phase, paths[i].haplotype) << "Invalid haplotype for path " << i;
-      EXPECT_EQ(path.count, paths[i].fragment) << "Invalid fragment for path " << i;
+      EXPECT_EQ(path.count, start_offset_to_number(paths[i].fragment)) << "Invalid fragment for path " << i;
     }
   }
 };

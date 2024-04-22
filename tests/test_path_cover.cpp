@@ -216,18 +216,18 @@ public:
     {"GRCh38#0#chr1", PathSense::REFERENCE},
     {"GRCh37#0#chr1", PathSense::REFERENCE},
     {"coolgene", PathSense::GENERIC},
-    {"sample1#1#chr1#0", PathSense::HAPLOTYPE},
-    {"sample1#2#chr1#0", PathSense::HAPLOTYPE},
-    {"CHM13#0#chr1#0", PathSense::HAPLOTYPE}
+    {"sample1#1#chr1", PathSense::HAPLOTYPE},
+    {"sample1#2#chr1", PathSense::HAPLOTYPE},
+    {"CHM13#0#chr1", PathSense::HAPLOTYPE}
   };
   
   std::unordered_map<std::string, PathSense> paths2 {
     {"GRCh38#1#chr1", PathSense::REFERENCE},
     {"GRCh37#2#chr1", PathSense::REFERENCE},
     {"coolergene", PathSense::GENERIC},
-    {"sample1#1#chr2#0", PathSense::HAPLOTYPE},
-    {"sample1#2#chr2#0", PathSense::HAPLOTYPE},
-    {"CHM13v2#0#chr1#0", PathSense::HAPLOTYPE}
+    {"sample1#1#chr2", PathSense::HAPLOTYPE},
+    {"sample1#2#chr2", PathSense::HAPLOTYPE},
+    {"CHM13v2#0#chr1", PathSense::HAPLOTYPE}
   };
   
   std::unordered_set<PathSense> all_senses {PathSense::GENERIC, PathSense::REFERENCE, PathSense::HAPLOTYPE};

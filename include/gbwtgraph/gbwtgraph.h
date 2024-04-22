@@ -327,11 +327,6 @@ public:
     /// or NO_HAPLOTYPE if it does not belong to one.
     virtual size_t get_haplotype(const path_handle_t& handle) const;
 
-    /// Get the phase block number (contiguously phased region of a sample,
-    /// contig, and haplotype) of the path-or-thread, or NO_PHASE_BLOCK if it
-    /// does not belong to one.
-    virtual size_t get_phase_block(const path_handle_t& handle) const;
-
     /// Get the bounds of the path-or-thread that are actually represented
     /// here. Should be NO_SUBRANGE if the entirety is represented here, and
     /// 0-based inclusive start and exclusive end positions of the stored

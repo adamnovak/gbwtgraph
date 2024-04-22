@@ -182,13 +182,11 @@ size_t get_path_haplotype(const gbwt::Metadata& metadata, const gbwt::PathName& 
 // Tolerates missing metadata.
 size_t get_path_haplotype(const gbwt::GBWT& index, gbwt::size_type path_number, PathSense sense);
 
-// Determine the phase block number a path ought to present, from stored metadata.
-// Tolerates incomplete metadata.
-size_t get_path_phase_block(const gbwt::Metadata& metadata, const gbwt::PathName& path_name, PathSense sense);
+// Convert a subrange to a single number to store in the count field.
+gbwt::PathName::path_name_type subrange_to_number(const subrange_t& subrange);
 
-// Determine the phase block number a path ought to present, from stored metadata.
-// Tolerates missing metadata.
-size_t get_path_phase_block(const gbwt::GBWT& index, gbwt::size_type path_number, PathSense sense);
+// Convert a subrange start position to a single number to store in the count field.
+gbwt::PathName::path_name_type start_offset_to_number(const size_t& subrange_start);
 
 // Determine the subrange that a path ought to present, from stored metadata.
 // Tolerates incomplete metadata.
@@ -207,8 +205,8 @@ std::string compose_path_name(const gbwt::Metadata& metadata, const gbwt::PathNa
 std::string compose_path_name(const gbwt::GBWT& index, gbwt::size_type path_number, PathSense sense);
 
 // We also have write accessors.
-// For write access to sample name, locus, haplotype, phase block, and
-// subrange, see MetadataBuilder::add_path().
+// For write access to sample name, locus, haplotype, and subrange, see
+// MetadataBuilder::add_path().
 
 // Set the senses for samples' paths, into the given GBWT tag set.
 void set_sample_path_senses(gbwt::Tags& tags, const std::unordered_map<std::string, PathSense>& senses);
@@ -462,7 +460,7 @@ public:
     std::regex parser;
 
     // Mapping from regex submatches to GBWT path name components.
-    size_t sample_field, contig_field, haplotype_field, fragment_field;
+    size_t sample_field, contig_field, haplotype_field, start_offset_field;
 
     PathSense sense;
 
@@ -488,7 +486,7 @@ public:
   // Add a path defined by libhandlegraph metadata to the given job.
   // Doesn't create metadata for samples or contigs if the no-name sentinel is
   // passed for a sense that usually has them.
-  void add_path(PathSense sense, const std::string& sample_name, const std::string& locus_name, size_t haplotype, size_t phase_block, const handlegraph::subrange_t& subrange, size_t job = 0);
+  void add_path(PathSense sense, const std::string& sample_name, const std::string& locus_name, size_t haplotype, const handlegraph::subrange_t& subrange, size_t job = 0);
 
   // Parse a path name using a regex to determine metadata, and assign it to the given job.
   void add_path(const std::string& name, size_t job = 0);
@@ -497,10 +495,10 @@ public:
   void add_walk(const std::string& sample, const std::string& haplotype, const std::string& contig, const std::string& start, size_t job = 0);
 
   // Add a haplotype path and assign it to the given job.
-  void add_haplotype(const std::string& sample, const std::string& contig, size_t haplotype, size_t fragment, size_t job = 0);
+  void add_haplotype(const std::string& sample, const std::string& contig, size_t haplotype, const subrange_t& subrange, size_t job = 0);
 
   // Add a generic path and assign it to the given job.
-  void add_generic_path(const std::string& name, size_t job = 0);
+  void add_generic_path(const std::string& name, const subrange_t& subrange, size_t job = 0);
 
   bool empty() const { return this->path_names.empty(); }
 

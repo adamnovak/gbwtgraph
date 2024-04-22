@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <sstream>
+#include <stdexcept>
 
 #include <gbwt/utils.h>
 
@@ -231,38 +232,75 @@ get_path_haplotype(const gbwt::GBWT& index, gbwt::size_type path_number, PathSen
   return get_path_haplotype(index.metadata, index.metadata.path(path_number), sense);
 }
 
-size_t
-get_path_phase_block([[maybe_unused]] const gbwt::Metadata& metadata, const gbwt::PathName& path_name, PathSense sense)
+gbwt::PathName::path_name_type
+subrange_to_number(const subrange_t& subrange)
 {
-  if(sense == PathSense::HAPLOTYPE)
-  {
-    // Only haplotype paths have phase blocks
-    return path_name.count;
-  }
-  return PathMetadata::NO_PHASE_BLOCK;
+  // Don't bother encoding the end.
+  // TODO: Work out how to encode the end
+  return start_offset_to_number(subrange.first);
 }
 
-size_t
-get_path_phase_block(const gbwt::GBWT& index, gbwt::size_type path_number, PathSense sense)
+gbwt::PathName::path_name_type
+start_offset_to_number(const size_t& subrange_start)
 {
-  if(!index.hasMetadata() || !index.metadata.hasPathNames() || path_number >= index.metadata.paths())
+  // Since gbwt::path_name_type is 32 bits usually, we need to handle the sentinel specially.
+
+  if(subrange_start == handlegraph::PathMetadata::NO_SUBRANGE.first)
   {
-    return PathMetadata::NO_PHASE_BLOCK;
+    // Encode no subrange *and* subrange at 0 both as 0.
+    // Decide which is which by checking whether there are multiple pieces later.
+    return 0;
   }
-  return get_path_phase_block(index.metadata, index.metadata.path(path_number), sense);
+  else if(subrange_start < std::numeric_limits<gbwt::PathName::path_name_type>::max())
+  {
+    return subrange_start;
+  }
+  else
+  {
+    throw std::range_error("Subrange start " + std::to_string(subrange_start) + " is too wide to be encoded.");
+  }
 }
 
 subrange_t
 get_path_subrange([[maybe_unused]] const gbwt::Metadata& metadata, const gbwt::PathName& path_name, PathSense sense)
 {
-  subrange_t subrange = PathMetadata::NO_SUBRANGE;
-  if(sense != PathSense::HAPLOTYPE && path_name.count != 0)
+  if(path_name.count == 0)
   {
-    // If we aren't a haplotype and we have a nonzero count, we use count to
-    // store the subrange start.
-    subrange.first = path_name.count;
+    // This could be a subrange starting at 0, or NO_SUBRANGE, depending.
+
+    // Count up to 2 pieces of this sample, contig, and haplotype.
+    size_t piece_count = 0;
+    for(auto& path_id : metadata.findPaths(path_name.sample, path_name.contig))
+    {
+      auto& found_name = metadata.path(path_id);
+      if(found_name.phase == path_name.phase)
+      {
+        piece_count++;
+        if(piece_count > 1)
+        {
+          break;
+        }
+      }
+    }
+
+    if(piece_count > 1)
+    {
+      // This is a subrange starting at 0, since there are other subranges on
+      // this haplotype.
+      return {path_name.count, handlegraph::PathMetadata::NO_END_POSITION};
+      
+    }
+    else
+    {
+      // This is the only piece on this haplotype.
+      return handlegraph::PathMetadata::NO_SUBRANGE;
+    }
   }
-  return subrange;
+  else
+  {
+    // We have a nonzero subrange start. Use it.
+    return {path_name.count, handlegraph::PathMetadata::NO_END_POSITION};
+  }
 }
 
 subrange_t
@@ -284,7 +322,6 @@ compose_path_name(const gbwt::Metadata& metadata, const gbwt::PathName& path_nam
     get_path_sample_name(metadata, path_name, sense),
     get_path_locus_name(metadata, path_name, sense),
     get_path_haplotype(metadata, path_name, sense),
-    get_path_phase_block(metadata, path_name, sense),
     get_path_subrange(metadata, path_name, sense)
   );
 }
@@ -530,7 +567,7 @@ SequenceSource::invert_translation(const std::function<bool(std::pair<nid_t, nid
 //------------------------------------------------------------------------------
 
 MetadataBuilder::PathMetadataBuilder::PathMetadataBuilder(const std::string& path_name_regex, const std::string& path_name_fields, PathSense path_sense) :
-  sample_field(NO_FIELD), contig_field(NO_FIELD), haplotype_field(NO_FIELD), fragment_field(NO_FIELD), sense(path_sense)
+  sample_field(NO_FIELD), contig_field(NO_FIELD), haplotype_field(NO_FIELD), start_offset_field(NO_FIELD), sense(path_sense)
 {
   // Initialize the regex.
   try { this->parser = std::regex(path_name_regex); }
@@ -570,11 +607,12 @@ MetadataBuilder::PathMetadataBuilder::PathMetadataBuilder(const std::string& pat
         this->haplotype_field = i;
         break;
       case 'f':
-        if(this->fragment_field != NO_FIELD)
+      case 'o':
+        if(this->start_offset_field != NO_FIELD)
         {
-          throw std::runtime_error("MetadataBuilder: Duplicate fragment field");
+          throw std::runtime_error("MetadataBuilder: Duplicate start offset field");
         }
-        this->fragment_field = i;
+        this->start_offset_field = i;
         break;
     }
   }
@@ -645,7 +683,7 @@ MetadataBuilder::add_path_name_format(const std::string& path_name_regex, const 
 }
 
 void
-MetadataBuilder::add_path(PathSense sense, const std::string& sample_name, const std::string& locus_name, size_t haplotype, size_t phase_block, const handlegraph::subrange_t& subrange, size_t job)
+MetadataBuilder::add_path(PathSense sense, const std::string& sample_name, const std::string& locus_name, size_t haplotype, const handlegraph::subrange_t& subrange, size_t job)
 {
   gbwt::PathName path_name =
   {
@@ -697,16 +735,8 @@ MetadataBuilder::add_path(PathSense sense, const std::string& sample_name, const
   // Remember that this phase of this sample exists.
   this->haplotypes.insert(std::pair<size_t, size_t>(path_name.sample, path_name.phase));
 
-  if(phase_block != PathMetadata::NO_PHASE_BLOCK)
-  {
-    // Use the phase block as the count
-    path_name.count = phase_block;
-  }
-  else if(subrange != PathMetadata::NO_SUBRANGE)
-  {
-    // Use the subrange start as the count
-    path_name.count = subrange.first;
-  }
+  // Encode the subrange.
+  path_name.count = subrange_to_number(subrange);
 
   {
     auto iter = this->counts.find(path_name);
@@ -719,7 +749,6 @@ MetadataBuilder::add_path(PathSense sense, const std::string& sample_name, const
       if(sample_name != PathMetadata::NO_SAMPLE_NAME) { ss << " sample " << sample_name; }
       if(locus_name != PathMetadata::NO_LOCUS_NAME) { ss << " contig " << locus_name; }
       if(haplotype != PathMetadata::NO_HAPLOTYPE) { ss << " phase " << haplotype; }
-      if(phase_block != PathMetadata::NO_PHASE_BLOCK) { ss << " count " << phase_block; }
       if(subrange != PathMetadata::NO_SUBRANGE)
       {
         ss << "range [" << subrange.first;
@@ -727,7 +756,7 @@ MetadataBuilder::add_path(PathSense sense, const std::string& sample_name, const
         ss << "]";
       }
 
-      if(phase_block != PathMetadata::NO_PHASE_BLOCK || subrange != PathMetadata::NO_SUBRANGE)
+      if(subrange != PathMetadata::NO_SUBRANGE)
       {
         // The count was user-specified, so bail out.
         throw std::runtime_error("MetadataBuilder: Duplicate path for " + ss.str());
@@ -792,17 +821,17 @@ MetadataBuilder::add_path(const std::string& name, size_t job)
       }
     }
 
-    size_t phase_block = PathMetadata::NO_PHASE_BLOCK;
-    if(format.fragment_field != NO_FIELD)
+    subrange_t subrange = PathMetadata::NO_SUBRANGE;
+    if(format.start_offset_field != NO_FIELD)
     {
-      try { phase_block = std::stoul(fields[format.fragment_field]); }
+      try { subrange.first = std::stoul(fields[format.start_offset_field]); }
       catch(const std::invalid_argument&)
       {
-        throw std::runtime_error("MetadataBuilder: Invalid fragment field " + fields[format.fragment_field].str());
+        throw std::runtime_error("MetadataBuilder: Invalid start offset field " + fields[format.start_offset_field].str());
       }
     }
 
-    this->add_path(format.sense, sample_name, locus_name, haplotype, phase_block, PathMetadata::NO_SUBRANGE, job);
+    this->add_path(format.sense, sample_name, locus_name, haplotype, subrange, job);
     return;
   }
   throw std::runtime_error("MetadataBuilder: Cannot parse path name " + name);
@@ -829,7 +858,7 @@ MetadataBuilder::add_walk(const std::string& sample, const std::string& haplotyp
       throw std::runtime_error("MetadataBuilder: Invalid start position " + start);
     }
 
-    this->add_path(PathSense::GENERIC, PathMetadata::NO_SAMPLE_NAME, contig, PathMetadata::NO_HAPLOTYPE, PathMetadata::NO_PHASE_BLOCK, subrange, job);
+    this->add_path(PathSense::GENERIC, PathMetadata::NO_SAMPLE_NAME, contig, PathMetadata::NO_HAPLOTYPE, subrange, job);
   }
   else
   {
@@ -841,29 +870,29 @@ MetadataBuilder::add_walk(const std::string& sample, const std::string& haplotyp
       throw std::runtime_error("MetadataBuilder: Invalid haplotype field " + haplotype);
     }
 
-    // Start position as fragment identifier.
-    size_t phase_block = PathMetadata::NO_PHASE_BLOCK;
-    try { phase_block = std::stoul(start); }
+    // Start position
+    subrange_t subrange = PathMetadata::NO_SUBRANGE;
+    try { subrange.first = std::stoul(start); }
     catch(const std::invalid_argument&)
     {
       throw std::runtime_error("MetadataBuilder: Invalid start position " + start);
     }
 
     // Add as a haplotype
-    this->add_path(PathSense::HAPLOTYPE, sample, contig, haplotype_number, phase_block, PathMetadata::NO_SUBRANGE, job);
+    this->add_path(PathSense::HAPLOTYPE, sample, contig, haplotype_number, subrange, job);
   }
 }
 
 void
-MetadataBuilder::add_haplotype(const std::string& sample, const std::string& contig, size_t haplotype, size_t fragment, size_t job)
+MetadataBuilder::add_haplotype(const std::string& sample, const std::string& contig, size_t haplotype, const subrange_t& subrange, size_t job)
 {
-  this->add_path(PathSense::HAPLOTYPE, sample, contig, haplotype, fragment, PathMetadata::NO_SUBRANGE, job);
+  this->add_path(PathSense::HAPLOTYPE, sample, contig, haplotype, subrange, job);
 }
 
 void
-MetadataBuilder::add_generic_path(const std::string& name, size_t job)
+MetadataBuilder::add_generic_path(const std::string& name, const subrange_t& subrange, size_t job)
 {
-  this->add_path(PathSense::GENERIC, PathMetadata::NO_SAMPLE_NAME, name, PathMetadata::NO_HAPLOTYPE, PathMetadata::NO_PHASE_BLOCK, PathMetadata::NO_SUBRANGE, job);
+  this->add_path(PathSense::GENERIC, PathMetadata::NO_SAMPLE_NAME, name, PathMetadata::NO_HAPLOTYPE, subrange, job);
 }
 
 gbwt::Metadata

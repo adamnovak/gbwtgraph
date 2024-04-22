@@ -41,7 +41,6 @@ public:
   std::map<std::string, std::string> correct_sample_name;
   std::map<std::string, std::string> correct_locus_name;
   std::map<std::string, size_t> correct_haplotype_number;
-  std::map<std::string, size_t> correct_phase_block_number;
   std::map<std::string, handlegraph::subrange_t> correct_subrange;
 
   GraphOperations()
@@ -90,37 +89,31 @@ public:
 
     this->correct_reference_paths = {{"GRCh38#empty2", empty_path}};
     
-    this->correct_haplotype_paths = {{"Jouni Sirén#0#chr1#0", short_path}};
+    this->correct_haplotype_paths = {{"Jouni Sirén#0#chr1", short_path}};
     
     this->correct_sample_name = {{"chr1", handlegraph::PathMetadata::NO_SAMPLE_NAME},
                                  {"chr2", handlegraph::PathMetadata::NO_SAMPLE_NAME},
                                  {"empty1", handlegraph::PathMetadata::NO_SAMPLE_NAME},
                                  {"GRCh38#empty2", "GRCh38"},
-                                 {"Jouni Sirén#0#chr1#0", "Jouni Sirén"}};
+                                 {"Jouni Sirén#0#chr1", "Jouni Sirén"}};
                                  
     this->correct_locus_name = {{"chr1", "chr1"},
                                 {"chr2", "chr2"},
                                 {"empty1", "empty1"},
                                 {"GRCh38#empty2", "empty2"},
-                                {"Jouni Sirén#0#chr1#0", "chr1"}};
+                                {"Jouni Sirén#0#chr1", "chr1"}};
     
     this->correct_haplotype_number = {{"chr1", handlegraph::PathMetadata::NO_HAPLOTYPE},
                                       {"chr2", handlegraph::PathMetadata::NO_HAPLOTYPE},
                                       {"empty1", handlegraph::PathMetadata::NO_HAPLOTYPE},
                                       {"GRCh38#empty2", handlegraph::PathMetadata::NO_HAPLOTYPE},
-                                      {"Jouni Sirén#0#chr1#0", 0}};
-    
-    this->correct_phase_block_number = {{"chr1", handlegraph::PathMetadata::NO_PHASE_BLOCK},
-                                        {"chr2", handlegraph::PathMetadata::NO_PHASE_BLOCK},
-                                        {"empty1", handlegraph::PathMetadata::NO_PHASE_BLOCK},
-                                        {"GRCh38#empty2", handlegraph::PathMetadata::NO_PHASE_BLOCK},
-                                        {"Jouni Sirén#0#chr1#0", 0}};
+                                      {"Jouni Sirén#0#chr1", 0}};
     
     this->correct_subrange = {{"chr1", handlegraph::PathMetadata::NO_SUBRANGE},
                               {"chr2", handlegraph::PathMetadata::NO_SUBRANGE},
                               {"empty1", handlegraph::PathMetadata::NO_SUBRANGE},
                               {"GRCh38#empty2", handlegraph::PathMetadata::NO_SUBRANGE},
-                              {"Jouni Sirén#0#chr1#0", handlegraph::PathMetadata::NO_SUBRANGE}};
+                              {"Jouni Sirén#0#chr1", handlegraph::PathMetadata::NO_SUBRANGE}};
     
   }
 };
@@ -446,13 +439,6 @@ TEST_F(GraphOperations, PathMetadata)
     handlegraph::path_handle_t path_handle = this->graph.get_path_handle(kv.first);
     EXPECT_EQ(this->graph.get_haplotype(path_handle), kv.second)
       << "Path " << kv.first << " has wrong haplotype number";
-  }
-  
-  for(auto& kv : this->correct_phase_block_number)
-  {
-    handlegraph::path_handle_t path_handle = this->graph.get_path_handle(kv.first);
-    EXPECT_EQ(this->graph.get_phase_block(path_handle), kv.second)
-      << "Path " << kv.first << " has wrong phase block number";
   }
   
   for(auto& kv : this->correct_subrange)
